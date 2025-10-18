@@ -1,6 +1,6 @@
 {
     "zFH_Prefix": "{gold}FortniteHits {silver}» ",
-    "zFH_Enable": "{green}Hiển thị damage {default}đã bật!",
-    "zFH_Disable": "{red}Hiển thị damage {default}đã tắt!",
-    "zFH_NoAccess": "{red}Bạn không có quyền sử dụng tính năng này!"
+    "zFH_Enable": "{prefix}{green}Hiển thị damage {default}đã bật!",
+    "zFH_Disable": "{prefix}{red}Hiển thị damage {default}đã tắt!",
+    "zFH_NoAccess": "{prefix}{red}Bạn không có quyền sử dụng tính năng này!"
 }

@@ -7,28 +7,80 @@ namespace FortniteHits.Managers;
 
 public class DamageManager
 {
-    // Shotgun damage tracking
-    private readonly Dictionary<int, bool> _isFired = new();
-    private readonly Dictionary<int, Dictionary<int, int>> _totalSGDamage = new();
-    private readonly Dictionary<int, Dictionary<int, bool>> _isCrit = new();
-    private readonly Dictionary<int, Vector> _playerPosLate = new();
-
-    // Particle tracking
-    private readonly Dictionary<int, List<CParticleSystem>> _damageParticles = new();
-
+    private readonly Dictionary<int, Dictionary<int, ShotgunData>> _shotgunData = new();
+    private readonly Dictionary<int, List<ParticleInfo>> _damageParticles = new();
     private readonly float _distance;
+    private int _tickCount = 0;
+
+    private class ShotgunData
+    {
+        public int TotalDamage { get; set; }
+        public bool IsCrit { get; set; }
+        public Vector? Position { get; set; }
+        public bool IsProcessing { get; set; }
+        public int ProcessTick { get; set; }
+    }
+
+    private class ParticleInfo
+    {
+        public CParticleSystem? Particle { get; set; }
+        public int RemoveTick { get; set; }
+        public bool IsChild { get; set; }
+        public int Digit { get; set; }
+        public Vector Position { get; set; } = new(0, 0, 0);
+        public bool IsCrit { get; set; }
+        public bool IsRight { get; set; }
+    }
 
     public DamageManager(float distance)
     {
         _distance = distance;
+    }
 
-        // Initialize collections for all slots
-        for (int i = 0; i < 64; i++)
+    public void OnTick()
+    {
+        _tickCount++;
+
+        foreach (var attackerData in _shotgunData.ToList())
         {
-            _isFired[i] = false;
-            _totalSGDamage[i] = new Dictionary<int, int>();
-            _isCrit[i] = new Dictionary<int, bool>();
-            _damageParticles[i] = new List<CParticleSystem>();
+            foreach (var victimData in attackerData.Value.ToList())
+            {
+                var data = victimData.Value;
+                if (data.IsProcessing && _tickCount >= data.ProcessTick)
+                {
+                    if (data.TotalDamage > 0)
+                    {
+                        ShowDamageParticle(attackerData.Key, victimData.Key, data.TotalDamage, data.IsCrit, data.Position);
+                    }
+                    data.TotalDamage = 0;
+                    data.IsCrit = false;
+                    data.Position = null;
+                    data.IsProcessing = false;
+                }
+            }
+        }
+
+        foreach (var playerParticles in _damageParticles.Values)
+        {
+            foreach (var particleInfo in playerParticles.ToList())
+            {
+                if (_tickCount >= particleInfo.RemoveTick)
+                {
+                    particleInfo.Particle?.Remove();
+                    playerParticles.Remove(particleInfo);
+
+                    if (!particleInfo.IsChild)
+                    {
+                        CreateChildParticle(
+                            particleInfo.Digit,
+                            particleInfo.Position,
+                            particleInfo.IsCrit,
+                            particleInfo.IsRight,
+                            playerParticles
+                        );
+                    }
+                }
+            }
         }
     }
 
@@ -40,149 +92,93 @@ public class DamageManager
         }
         else
         {
-            ShowDamageParticle(attackerSlot, victimSlot, damage, isHeadshot, false);
+            ShowDamageParticle(attackerSlot, victimSlot, damage, isHeadshot, null);
         }
     }
 
     public void CleanupPlayer(int slot)
     {
-        _isFired.Remove(slot);
-        _totalSGDamage.Remove(slot);
-        _isCrit.Remove(slot);
-        _playerPosLate.Remove(slot);
+        _shotgunData.Remove(slot);
 
-        // Clean up particles
-        if (_damageParticles.ContainsKey(slot))
+        if (_damageParticles.TryGetValue(slot, out var particles))
         {
-            foreach (var particle in _damageParticles[slot].ToList())
+            foreach (var particleInfo in particles.ToList())
             {
-                if (particle?.IsValid == true)
-                {
-                    particle.Remove();
-                }
+                particleInfo.Particle?.Remove();
             }
-            _damageParticles[slot].Clear();
+            particles.Clear();
+            _damageParticles.Remove(slot);
         }
     }
 
     public void CleanupAllParticles()
     {
-        foreach (var playerParticles in _damageParticles.Values)
+        foreach (var particles in _damageParticles.Values)
         {
-            foreach (var particle in playerParticles.ToList())
+            foreach (var particleInfo in particles.ToList())
             {
-                if (particle?.IsValid == true)
-                {
-                    particle.Remove();
-                }
+                particleInfo.Particle?.Remove();
             }
-            playerParticles.Clear();
+            particles.Clear();
         }
+        _damageParticles.Clear();
     }
 
     private static bool IsShotgunWeapon(string weapon)
     {
-        return weapon switch
-        {
-            "xm1014" or "nova" or "mag7" or "sawedoff" => true,
-            _ => false
-        };
+        return weapon is "xm1014" or "nova" or "mag7" or "sawedoff";
     }
 
     private void HandleShotgunDamage(int attackerSlot, int victimSlot, int damage, bool isHeadshot, CCSPlayerController victim)
     {
-        if (!_totalSGDamage[attackerSlot].ContainsKey(victimSlot))
-            _totalSGDamage[attackerSlot][victimSlot] = 0;
+        if (!_shotgunData.ContainsKey(attackerSlot))
+            _shotgunData[attackerSlot] = new Dictionary<int, ShotgunData>();
 
-        if (!_isCrit[attackerSlot].ContainsKey(victimSlot))
-            _isCrit[attackerSlot][victimSlot] = false;
+        if (!_shotgunData[attackerSlot].ContainsKey(victimSlot))
+            _shotgunData[attackerSlot][victimSlot] = new ShotgunData();
 
-        if (!_isFired[attackerSlot])
+        var data = _shotgunData[attackerSlot][victimSlot];
+
+        if (!data.IsProcessing)
         {
-            _isFired[attackerSlot] = true;
-            _totalSGDamage[attackerSlot][victimSlot] = damage;
+            data.IsProcessing = true;
+            data.TotalDamage = damage;
+            data.IsCrit = isHeadshot;
+            data.ProcessTick = _tickCount + 6;
 
-            // Store victim position for late display
-            if (victim?.PlayerPawn?.IsValid == true && victim.PlayerPawn.Value?.AbsOrigin != null)
+            if (victim?.PlayerPawn?.Value?.AbsOrigin != null)
             {
-                _playerPosLate[victimSlot] = victim.PlayerPawn.Value.AbsOrigin;
+                var origin = victim.PlayerPawn.Value.AbsOrigin;
+                data.Position = new Vector(origin.X, origin.Y, origin.Z);
             }
-
-            // Schedule damage display after 0.1 seconds
-            Server.NextFrame(() =>
-            {
-                Server.NextWorldUpdate(() =>
-                {
-                    Task.Delay(100).ContinueWith(_ =>
-                    {
-                        Server.NextFrame(() =>
-                        {
-                            _isFired[attackerSlot] = false;
-
-                            foreach (var kvp in _totalSGDamage[attackerSlot].ToList())
-                            {
-                                int victim = kvp.Key;
-                                int totalDamage = kvp.Value;
-
-                                if (totalDamage > 0)
-                                {
-                                    bool wasCrit = _isCrit[attackerSlot].GetValueOrDefault(victim, false);
-                                    ShowDamageParticle(attackerSlot, victim, totalDamage, wasCrit, true);
-
-                                    _totalSGDamage[attackerSlot][victim] = 0;
-                                    _isCrit[attackerSlot][victim] = false;
-                                }
-                            }
-                        });
-                    });
-                });
-            });
         }
         else
         {
-            _totalSGDamage[attackerSlot][victimSlot] += damage;
-        }
-
-        if (isHeadshot)
-        {
-            _isCrit[attackerSlot][victimSlot] = true;
+            data.TotalDamage += damage;
+            if (isHeadshot)
+                data.IsCrit = true;
         }
     }
 
-    private void ShowDamageParticle(int attackerSlot, int victimSlot, int damage, bool isCrit, bool useLatePosition)
+    private void ShowDamageParticle(int attackerSlot, int victimSlot, int damage, bool isCrit, Vector? storedPosition)
     {
         var attacker = Utilities.GetPlayerFromSlot(attackerSlot);
         var victim = Utilities.GetPlayerFromSlot(victimSlot);
 
-        if (attacker?.PlayerPawn?.IsValid != true || victim?.PlayerPawn?.IsValid != true)
+        if (attacker?.PlayerPawn?.Value?.AbsOrigin == null || victim?.PlayerPawn?.Value == null)
             return;
 
-        var attackerPawn = attacker.PlayerPawn.Value;
         var victimPawn = victim.PlayerPawn.Value;
-
-        if (attackerPawn?.AbsOrigin == null || victimPawn?.AbsOrigin == null)
+        if (victimPawn.AbsOrigin == null)
             return;
 
-        Vector victimPos;
-        if (useLatePosition && _playerPosLate.ContainsKey(victimSlot))
-        {
-            victimPos = _playerPosLate[victimSlot];
-        }
-        else
-        {
-            victimPos = victimPawn.AbsOrigin;
-        }
+        Vector victimPos = storedPosition ?? victimPawn.AbsOrigin;
 
-        // Convert damage to individual digits
         var digits = GetDamageDigits(damage);
-        var digitCount = digits.Count;
-
-        // Calculate positioning
-        var attackerPos = attackerPawn.AbsOrigin;
+        var attackerPos = attacker.PlayerPawn.Value.AbsOrigin;
         var distance = CalculateDistance(attackerPos, victimPos);
         var spacing = distance > 700.0f ? (distance / 700.0f * 6.0f) : 6.0f;
 
-        // Get random positioning offsets
         var random = new Random();
         var baseOffset = new Vector(
             (float)(random.NextDouble() - 0.5) * spacing,
@@ -190,15 +186,16 @@ public class DamageManager
             0
         );
 
-        // Check if victim is ducking - convert to PlayerFlags enum for HasFlag
         bool isDucking = ((PlayerFlags)victimPawn.Flags).HasFlag(PlayerFlags.FL_DUCKING);
         float heightOffset = isCrit ? (isDucking ? 45.0f : 60.0f) : (isDucking ? 25.0f : 35.0f);
         heightOffset += (float)(random.NextDouble() * (isCrit ? 10.0f : 20.0f));
 
-        // Create particles for each digit
-        var halfCount = (float)Math.Ceiling(digitCount / 2.0);
+        var halfCount = (float)Math.Ceiling(digits.Count / 2.0);
 
-        for (int i = 0; i < digitCount; i++)
+        if (!_damageParticles.ContainsKey(attackerSlot))
+            _damageParticles[attackerSlot] = new List<ParticleInfo>();
+
+        for (int i = 0; i < digits.Count; i++)
         {
             var digitPos = new Vector(
                 victimPos.X + baseOffset.X + (i - halfCount) * spacing,
@@ -206,133 +203,79 @@ public class DamageManager
                 victimPos.Z + heightOffset
             );
 
-            CreateDamageParticle(attackerSlot, digits[digitCount - 1 - i], digitPos, isCrit, i > halfCount);
+            CreateDamageParticle(
+                digits[digits.Count - 1 - i],
+                digitPos,
+                isCrit,
+                i > halfCount,
+                _damageParticles[attackerSlot]
+            );
         }
     }
 
     private static List<int> GetDamageDigits(int damage)
     {
+        if (damage == 0) return new List<int> { 0 };
+
         var digits = new List<int>();
-        if (damage == 0)
+        while (damage > 0)
         {
-            digits.Add(0);
-        }
-        else
-        {
-            while (damage > 0)
-            {
-                digits.Add(damage % 10);
-                damage /= 10;
-            }
+            digits.Add(damage % 10);
+            damage /= 10;
         }
         return digits;
     }
 
-    private void CreateDamageParticle(int attackerSlot, int digit, Vector position, bool isCrit, bool isRight)
+    private void CreateDamageParticle(int digit, Vector position, bool isCrit, bool isRight, List<ParticleInfo> particleList)
     {
         try
         {
-            var particleSystem = Utilities.CreateEntityByName<CParticleSystem>("info_particle_system");
-            if (particleSystem == null)
-                return;
+            var particle = Utilities.CreateEntityByName<CParticleSystem>("info_particle_system");
+            if (particle == null) return;
 
-            string particleName = $"particles/kolka/fortnite_dmg_v2/kolka_damage_{digit}_{(isRight ? "fr" : "fl")}{(isCrit ? "_crit" : "")}.vpcf";
+            particle.EffectName = $"particles/kolka/fortnite_dmg_v2/kolka_damage_{digit}_{(isRight ? "fr" : "fl")}{(isCrit ? "_crit" : "")}.vpcf";
+            particle.StartActive = true;
+            particle.Teleport(position);
+            particle.DispatchSpawn();
 
-            particleSystem.EffectName = particleName;
-            particleSystem.StartActive = true;
-            particleSystem.Teleport(position);
-            particleSystem.DispatchSpawn();
-
-            // Track particle for cleanup
-            if (!_damageParticles.ContainsKey(attackerSlot))
-                _damageParticles[attackerSlot] = new List<CParticleSystem>();
-
-            _damageParticles[attackerSlot].Add(particleSystem);
-
-            // Schedule particle cleanup and child particle creation
-            Task.Delay(500).ContinueWith(_ =>
+            particleList.Add(new ParticleInfo
             {
-                Server.NextFrame(() =>
-                {
-                    try
-                    {
-                        if (particleSystem?.IsValid == true)
-                        {
-                            particleSystem.StartActive = false;
-                            particleSystem.Remove();
-                        }
-
-                        // Safe removal from list
-                        if (particleSystem != null && _damageParticles.ContainsKey(attackerSlot))
-                        {
-                            _damageParticles[attackerSlot].Remove(particleSystem);
-                        }
-
-                        // Create child particle
-                        CreateChildParticle(attackerSlot, digit, position, isCrit, isRight);
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[FortniteHits] Error in particle cleanup: {ex.Message}");
-                    }
-                });
+                Particle = particle,
+                RemoveTick = _tickCount + 32,
+                IsChild = false,
+                Digit = digit,
+                Position = position,
+                IsCrit = isCrit,
+                IsRight = isRight
             });
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[FortniteHits] Error creating damage particle: {ex.Message}");
-        }
+        catch { }
     }
 
-    private void CreateChildParticle(int attackerSlot, int digit, Vector position, bool isCrit, bool isRight)
+    private void CreateChildParticle(int digit, Vector position, bool isCrit, bool isRight, List<ParticleInfo> particleList)
     {
         try
         {
             var childParticle = Utilities.CreateEntityByName<CParticleSystem>("info_particle_system");
-            if (childParticle == null)
-                return;
+            if (childParticle == null) return;
 
-            string childParticleName = $"particles/kolka/fortnite_dmg_v2/kolka_damage_{digit}_{(isRight ? "fr" : "fl")}{(isCrit ? "_crit" : "")}_child.vpcf";
-
-            childParticle.EffectName = childParticleName;
+            childParticle.EffectName = $"particles/kolka/fortnite_dmg_v2/kolka_damage_{digit}_{(isRight ? "fr" : "fl")}{(isCrit ? "_crit" : "")}_child.vpcf";
             childParticle.StartActive = true;
             childParticle.Teleport(position);
             childParticle.DispatchSpawn();
 
-            if (!_damageParticles.ContainsKey(attackerSlot))
-                _damageParticles[attackerSlot] = new List<CParticleSystem>();
-
-            _damageParticles[attackerSlot].Add(childParticle);
-
-            // Schedule child particle cleanup
-            Task.Delay(2500).ContinueWith(_ =>
+            particleList.Add(new ParticleInfo
             {
-                Server.NextFrame(() =>
-                {
-                    try
-                    {
-                        if (childParticle?.IsValid == true)
-                        {
-                            childParticle.Remove();
-                        }
-
-                        // Safe removal from list
-                        if (childParticle != null && _damageParticles.ContainsKey(attackerSlot))
-                        {
-                            _damageParticles[attackerSlot].Remove(childParticle);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[FortniteHits] Error in child particle cleanup: {ex.Message}");
-                    }
-                });
+                Particle = childParticle,
+                RemoveTick = _tickCount + 160,
+                IsChild = true,
+                Digit = digit,
+                Position = position,
+                IsCrit = isCrit,
+                IsRight = isRight
             });
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[FortniteHits] Error creating child particle: {ex.Message}");
-        }
+        catch { }
     }
 
     private static float CalculateDistance(Vector pos1, Vector pos2)

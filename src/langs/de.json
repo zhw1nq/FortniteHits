@@ -1,6 +1,6 @@
 {
     "zFH_Prefix": "{gold}FortniteHits {silver}» ",
-    "zFH_Enable": "{green}Schadenszahlen {default}aktiviert!",
-    "zFH_Disable": "{red}Schadenszahlen {default}deaktiviert!",
-    "zFH_NoAccess": "{red}Sie haben keinen Zugriff auf diese Funktion!"
+    "zFH_Enable": "{prefix}{green}Schadenszahlen {default}aktiviert!",
+    "zFH_Disable": "{prefix}{red}Schadenszahlen {default}deaktiviert!",
+    "zFH_NoAccess": "{prefix}{red}Sie haben keinen Zugriff auf diese Funktion!"
 }

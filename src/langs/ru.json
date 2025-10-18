@@ -1,6 +1,6 @@
 {
     "zFH_Prefix": "{gold}FortniteHits {silver}» ",
-    "zFH_Enable": "{green}Отображение урона {default}включено!",
-    "zFH_Disable": "{red}Отображение урона {default}отключено!",
-    "zFH_NoAccess": "{red}У вас нет доступа к этой функции!"
+    "zFH_Enable": "{prefix}{green}Отображение урона {default}включено!",
+    "zFH_Disable": "{prefix}{red}Отображение урона {default}отключено!",
+    "zFH_NoAccess": "{prefix}{red}У вас нет доступа к этой функции!"
 }
