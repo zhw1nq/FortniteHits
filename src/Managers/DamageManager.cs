@@ -79,7 +79,10 @@ public class DamageManager
                 var particleInfo = playerKvp.Value[i];
                 if (_tickCount >= particleInfo.RemoveTick)
                 {
-                    particleInfo.Particle?.Remove();
+                    if (particleInfo.Particle?.IsValid == true)
+                    {
+                        particleInfo.Particle.Remove();
+                    }
                     playerKvp.Value.RemoveAt(i);
 
                     if (!particleInfo.IsChild)
@@ -123,7 +126,10 @@ public class DamageManager
         {
             foreach (var particleInfo in particles)
             {
-                particleInfo.Particle?.Remove();
+                if (particleInfo.Particle?.IsValid == true)
+                {
+                    particleInfo.Particle.Remove();
+                }
             }
             particles.Clear();
             _damageParticles.Remove(slot);
@@ -136,7 +142,10 @@ public class DamageManager
         {
             foreach (var particleInfo in particles)
             {
-                particleInfo.Particle?.Remove();
+                if (particleInfo.Particle?.IsValid == true)
+                {
+                    particleInfo.Particle.Remove();
+                }
             }
             particles.Clear();
         }

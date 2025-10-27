@@ -9,7 +9,7 @@ using FortniteHits.Managers;
 
 namespace FortniteHits;
 
-[MinimumApiVersion(180)]
+[MinimumApiVersion(344)]
 public class FortniteHits : BasePlugin, IPluginConfig<PluginConfig>
 {
     public override string ModuleName => "Fortnite Hits";
