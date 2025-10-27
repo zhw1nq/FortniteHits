@@ -41,33 +41,46 @@ public class DamageManager
     {
         _tickCount++;
 
-        foreach (var attackerData in _shotgunData.ToList())
+        if (_shotgunData.Count == 0 && _damageParticles.Count == 0)
+            return;
+
+        var attackersToRemove = new List<int>();
+        foreach (var attackerKvp in _shotgunData)
         {
-            foreach (var victimData in attackerData.Value.ToList())
+            var victimsToRemove = new List<int>();
+            foreach (var victimKvp in attackerKvp.Value)
             {
-                var data = victimData.Value;
+                var data = victimKvp.Value;
                 if (data.IsProcessing && _tickCount >= data.ProcessTick)
                 {
                     if (data.TotalDamage > 0)
                     {
-                        ShowDamageParticle(attackerData.Key, victimData.Key, data.TotalDamage, data.IsCrit, data.Position);
+                        ShowDamageParticle(attackerKvp.Key, victimKvp.Key, data.TotalDamage, data.IsCrit, data.Position);
                     }
-                    data.TotalDamage = 0;
-                    data.IsCrit = false;
-                    data.Position = null;
-                    data.IsProcessing = false;
+                    victimsToRemove.Add(victimKvp.Key);
                 }
             }
+
+            foreach (var victimSlot in victimsToRemove)
+                attackerKvp.Value.Remove(victimSlot);
+
+            if (attackerKvp.Value.Count == 0)
+                attackersToRemove.Add(attackerKvp.Key);
         }
 
-        foreach (var playerParticles in _damageParticles.Values)
+        foreach (var slot in attackersToRemove)
+            _shotgunData.Remove(slot);
+
+        var playersToRemove = new List<int>();
+        foreach (var playerKvp in _damageParticles)
         {
-            foreach (var particleInfo in playerParticles.ToList())
+            for (int i = playerKvp.Value.Count - 1; i >= 0; i--)
             {
+                var particleInfo = playerKvp.Value[i];
                 if (_tickCount >= particleInfo.RemoveTick)
                 {
                     particleInfo.Particle?.Remove();
-                    playerParticles.Remove(particleInfo);
+                    playerKvp.Value.RemoveAt(i);
 
                     if (!particleInfo.IsChild)
                     {
@@ -76,12 +89,18 @@ public class DamageManager
                             particleInfo.Position,
                             particleInfo.IsCrit,
                             particleInfo.IsRight,
-                            playerParticles
+                            playerKvp.Value
                         );
                     }
                 }
             }
+
+            if (playerKvp.Value.Count == 0)
+                playersToRemove.Add(playerKvp.Key);
         }
+
+        foreach (var slot in playersToRemove)
+            _damageParticles.Remove(slot);
     }
 
     public void ProcessDamage(int attackerSlot, int victimSlot, int damage, bool isHeadshot, string weapon, CCSPlayerController victim)
@@ -102,7 +121,7 @@ public class DamageManager
 
         if (_damageParticles.TryGetValue(slot, out var particles))
         {
-            foreach (var particleInfo in particles.ToList())
+            foreach (var particleInfo in particles)
             {
                 particleInfo.Particle?.Remove();
             }
@@ -115,7 +134,7 @@ public class DamageManager
     {
         foreach (var particles in _damageParticles.Values)
         {
-            foreach (var particleInfo in particles.ToList())
+            foreach (var particleInfo in particles)
             {
                 particleInfo.Particle?.Remove();
             }

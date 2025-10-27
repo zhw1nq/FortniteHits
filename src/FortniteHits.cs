@@ -13,7 +13,7 @@ namespace FortniteHits;
 public class FortniteHits : BasePlugin, IPluginConfig<PluginConfig>
 {
     public override string ModuleName => "Fortnite Hits";
-    public override string ModuleVersion => "1.3.0";
+    public override string ModuleVersion => "1.3.1";
     public override string ModuleAuthor => "zhw1nq";
     public override string ModuleDescription => "Fortnite-style damage numbers display";
 
@@ -27,7 +27,6 @@ public class FortniteHits : BasePlugin, IPluginConfig<PluginConfig>
         Config = config;
         _playerManager = new PlayerManager();
         _damageManager = new DamageManager(Config.Distance);
-        _playerManager.LoadSettings();
     }
 
     public override void Load(bool hotReload)
@@ -40,7 +39,6 @@ public class FortniteHits : BasePlugin, IPluginConfig<PluginConfig>
     public override void Unload(bool hotReload)
     {
         RemoveListener<Listeners.OnTick>(_damageManager.OnTick);
-        _playerManager?.SaveSettings();
         _damageManager?.CleanupAllParticles();
     }
 
@@ -77,8 +75,6 @@ public class FortniteHits : BasePlugin, IPluginConfig<PluginConfig>
         player.PrintToChat(_playerManager.IsEnabled(slot)
             ? Localizer["zFH_Enable"]
             : Localizer["zFH_Disable"]);
-
-        _playerManager.SavePlayerSetting(player, _playerManager.IsEnabled(slot));
     }
 
     [GameEventHandler]
@@ -160,7 +156,6 @@ public class FortniteHits : BasePlugin, IPluginConfig<PluginConfig>
         if (player?.IsValid == true)
         {
             _playerManager.SetEnabled(player.Slot, enabled);
-            _playerManager.SavePlayerSetting(player, enabled);
         }
     }
 }
