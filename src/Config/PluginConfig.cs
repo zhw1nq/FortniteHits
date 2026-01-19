@@ -14,6 +14,12 @@ public class PluginConfig : BasePluginConfig
     [JsonPropertyName("commands")]
     public List<string> Commands { get; set; } = new() { "fortnite", "fn", "damage" };
 
+    [JsonPropertyName("commands_enabled")]
+    public bool CommandsEnabled { get; set; } = true;
+
+    [JsonPropertyName("is_debug")]
+    public bool IsDebug { get; set; } = false;
+
     [JsonPropertyName("ConfigVersion")]
-    public override int Version { get; set; } = 2;
+    public override int Version { get; set; } = 3;
 }

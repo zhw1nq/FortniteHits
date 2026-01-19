@@ -10,6 +10,7 @@ public class DamageManager
     private readonly Dictionary<int, Dictionary<int, ShotgunData>> _shotgunData = new();
     private readonly Dictionary<int, List<ParticleInfo>> _damageParticles = new();
     private readonly float _distance;
+    private readonly Action<string>? _logDebug;
     private int _tickCount = 0;
 
     private class ShotgunData
@@ -32,9 +33,10 @@ public class DamageManager
         public bool IsRight { get; set; }
     }
 
-    public DamageManager(float distance)
+    public DamageManager(float distance, Action<string>? logDebug = null)
     {
         _distance = distance;
+        _logDebug = logDebug;
     }
 
     public void OnTick()
@@ -277,7 +279,10 @@ public class DamageManager
                 IsRight = isRight
             });
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logDebug?.Invoke($"CreateDamageParticle error: {ex.Message}");
+        }
     }
 
     private void CreateChildParticle(int digit, Vector position, bool isCrit, bool isRight, List<ParticleInfo> particleList)
@@ -303,7 +308,10 @@ public class DamageManager
                 IsRight = isRight
             });
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logDebug?.Invoke($"CreateChildParticle error: {ex.Message}");
+        }
     }
 
     private static float CalculateDistance(Vector pos1, Vector pos2)

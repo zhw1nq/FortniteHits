@@ -26,14 +26,20 @@ public class FortniteHits : BasePlugin, IPluginConfig<PluginConfig>
     {
         Config = config;
         _playerManager = new PlayerManager();
-        _damageManager = new DamageManager(Config.Distance);
+        _damageManager = new DamageManager(Config.Distance, LogDebug);
+    }
+
+    private void LogDebug(string message)
+    {
+        if (Config.IsDebug)
+            Server.PrintToConsole($"[FortniteHits] {message}");
     }
 
     public override void Load(bool hotReload)
     {
         RegisterCommands();
         RegisterListener<Listeners.OnTick>(_damageManager.OnTick);
-        Server.PrintToConsole("[FortniteHits] Plugin loaded");
+        LogDebug("Plugin loaded");
     }
 
     public override void Unload(bool hotReload)
@@ -44,6 +50,12 @@ public class FortniteHits : BasePlugin, IPluginConfig<PluginConfig>
 
     private void RegisterCommands()
     {
+        if (!Config.CommandsEnabled)
+        {
+            LogDebug("Commands are disabled via config");
+            return;
+        }
+
         if (Config.Commands.Count == 0)
             return;
 
@@ -59,6 +71,9 @@ public class FortniteHits : BasePlugin, IPluginConfig<PluginConfig>
     [CommandHelper(minArgs: 0, usage: "", whoCanExecute: CommandUsage.CLIENT_ONLY)]
     private void OnToggleCommand(CCSPlayerController? player, CommandInfo commandInfo)
     {
+        if (!Config.CommandsEnabled)
+            return;
+
         if (player?.IsValid != true || player.IsBot)
             return;
 
